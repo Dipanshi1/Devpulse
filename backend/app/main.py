@@ -1,7 +1,7 @@
 
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
 
@@ -13,15 +13,26 @@ def root():
 def get_developers(username: str):
     url = f"https://api.github.com/users/{username}"
     user_response = httpx.get(url)
+    if user_response.status_code == 404:
+      raise HTTPException(
+        status_code=404,
+        detail="GitHub user not found"
+    )
     user_data = user_response.json()
     repos_url = f"https://api.github.com/users/{username}/repos"
     total_stars = 0
     total_forks = 0
+    most_starred_repo = None
     repos_response = httpx.get(repos_url)
     repos_data = repos_response.json()
     for repo in repos_data:
         total_stars += repo["stargazers_count"]
         total_forks += repo["forks_count"]
+        if most_starred_repo is None:
+         most_starred_repo = repo
+
+        elif repo["stargazers_count"] > most_starred_repo["stargazers_count"]:
+         most_starred_repo = repo
 
     return {
         "username": user_data["login"],
@@ -35,5 +46,11 @@ def get_developers(username: str):
         "company": user_data["company"],
         "location": user_data["location"],
         "total_stars": total_stars,
-        "total_forks": total_forks
+        "total_forks": total_forks,
+        "most_starred_repo": {
+         "name": most_starred_repo["name"],
+         "stars": most_starred_repo["stargazers_count"],
+         "url": most_starred_repo["html_url"]
+       }
     }
+    
